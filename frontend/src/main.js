@@ -10,17 +10,30 @@ const app = createApp(App)
 const pinia = createPinia()
 app.use(pinia)
 
-// Restore the Supabase session BEFORE installing Vue Router. Installing the
-// router starts its initial navigation and runs auth guards immediately.
-// If that happens before getSession() completes, a valid user can be sent to
-// /login on every refresh even though persistSession is enabled.
+// Avoid top-level await in the app entry module. Safari's module loader has had
+// bugs with top-level await in split module graphs; initialize auth before the
+// router starts, but do it inside a normal async function instead.
 const auth = useAuthStore(pinia)
-await auth.initialize()
 
-app.use(router)
-await router.isReady()
-app.mount('#app')
+async function bootstrap() {
+  try {
+    await auth.initialize()
+  } catch (error) {
+    console.error('Could not initialize the app:', error)
+    auth.authError = error?.message || 'Twogether Class gagal dimuat.'
+  }
 
-if ('serviceWorker' in navigator && import.meta.env.PROD) {
-  window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch((error) => console.warn('Service worker registration failed:', error)))
+  app.use(router)
+  await router.isReady()
+  app.mount('#app')
+
+  if ('serviceWorker' in navigator && import.meta.env.PROD) {
+    window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch((error) => console.warn('Service worker registration failed:', error)))
+  }
 }
+
+void bootstrap().catch((error) => {
+  console.error('Could not start Twogether Class:', error)
+  const root = document.getElementById('app')
+  if (root) root.textContent = 'Twogether Class belum dapat dibuka. Periksa koneksi lalu muat ulang halaman.'
+})

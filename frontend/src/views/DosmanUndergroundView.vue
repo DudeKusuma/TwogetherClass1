@@ -50,7 +50,7 @@ const upgradeFrameLevel=(id)=>state.value[id]>=10?2:state.value[id]>=5?1:0
 const costs={power:[10,25,60,140,300,650,1300,2500],speed:[25,60,130,260,500,900,1500,2400,3800,6000],oreUpgrade:[35,100,250,600,1300],luck:[50,140,350,800,1800]}
 const upgrades=[{id:'power',label:'POWER',desc:'+1 Base Power',icon:'pickaxe'},{id:'speed',label:'SPEED',desc:'Auto mining lebih cepat',icon:'speed'},{id:'oreUpgrade',label:'ORE',desc:'+10% nilai reward',icon:'ore'},{id:'luck',label:'LUCK',desc:'Peluang bonus reward',icon:'luck'}]
 const autoDelay=computed(()=>Math.max(800,2000-120*state.value.speed))
-function choose(items,key='weight'){const total=items.reduce((a,x)=>a+x[key],0);let r=Math.random()*total;return items.find(x=>(r-=x[key])<=0)||items.at(-1)}
+function choose(items,key='weight'){const total=items.reduce((a,x)=>a+x[key],0);let r=Math.random()*total;return items.find(x=>(r-=x[key])<=0)||items[items.length-1]}
 function spawnOre(){const t=choose(oreTypes,'chance'),s=choose(sizes),i=sizes.indexOf(s);ore.value={...t,size:s.name,scale:s.scale};maxHp.value=t.hp[i]*8;hp.value=maxHp.value}
 function notify(msg){notice.value=msg;clearTimeout(noticeTimer);noticeTimer=setTimeout(()=>notice.value='',1800)}
 function queueSave(){pendingSave=true;saveStatus.value='Belum disimpan';clearTimeout(saveTimer);saveTimer=setTimeout(flushSave,1500)}

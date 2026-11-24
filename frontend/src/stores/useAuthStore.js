@@ -52,15 +52,30 @@ export const useAuthStore = defineStore('auth', () => {
       authError.value = 'Supabase belum dikonfigurasi. Periksa file frontend/.env.local.'
       return
     }
-    const { data, error } = await supabase.auth.getSession()
-    if (error) authError.value = error.message
-    await applySession(data?.session)
-    if (user.value) { await Promise.all([useAnnouncementStore().load(), useSubjectStore().load()]) }
-    supabase.auth.onAuthStateChange((_event, session) => {
-      // Defer profile lookup out of the auth callback to avoid locking the auth client.
-      Promise.resolve().then(() => applySession(session))
-    })
-    loading.value = false
+    try {
+      const { data, error } = await supabase.auth.getSession()
+      if (error) authError.value = error.message
+      await applySession(data?.session)
+    } catch (error) {
+      console.error('Could not restore the login session:', error)
+      authError.value = error?.message || 'Sesi login belum dapat dimuat.'
+    } finally {
+      supabase.auth.onAuthStateChange((_event, session) => {
+        // Defer profile lookup out of the auth callback to avoid locking the auth client.
+        Promise.resolve().then(() => applySession(session)).catch((error) => {
+          console.error('Could not update the login session:', error)
+        })
+      })
+      loading.value = false
+    }
+
+    // These optional page datasets should not delay the first screen on a slow
+    // mobile connection. They can load after auth has been restored.
+    if (user.value) {
+      Promise.all([useAnnouncementStore().load(), useSubjectStore().load()]).catch((error) => {
+        console.warn('Some class data could not be loaded yet:', error)
+      })
+    }
   }
 
   async function login(usernameOrEmail, password) {
