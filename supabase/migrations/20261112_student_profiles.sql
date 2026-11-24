@@ -4,6 +4,7 @@
 create table if not exists public.student_profile_details (
   profile_id uuid primary key references public.profiles(id) on delete cascade,
   short_name text not null default '' check (char_length(short_name) <= 40),
+  description text not null default '' check (char_length(description) <= 1000),
   birth_place text not null default '' check (char_length(birth_place) <= 80),
   birth_date date,
   gender text check (gender in ('L', 'P', 'Prefer not to say')),
@@ -13,6 +14,9 @@ create table if not exists public.student_profile_details (
   show_student_number boolean not null default false,
   updated_at timestamptz not null default now()
 );
+
+alter table public.student_profile_details
+  add column if not exists description text not null default '' check (char_length(description) <= 1000);
 
 alter table public.student_profile_details enable row level security;
 

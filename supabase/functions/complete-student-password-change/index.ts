@@ -56,7 +56,10 @@ Deno.serve(async (request) => {
     .maybeSingle()
 
   if (profileError) return json({ error: 'Tidak dapat memeriksa status akun.' }, 500)
-  if (!profile || profile.role !== 'student') return json({ error: 'Profil siswa tidak ditemukan.' }, 403)
+  // Class officers can also be required to choose a personal password on first login.
+  if (!profile || !['student', 'admin'].includes(profile.role)) {
+    return json({ error: 'Profil akun tidak ditemukan.' }, 403)
+  }
   if (profile.must_change_password !== true) {
     return json({ error: 'Akun ini tidak sedang diwajibkan mengganti password.' }, 409)
   }

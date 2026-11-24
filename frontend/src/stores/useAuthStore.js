@@ -10,7 +10,7 @@ export const useAuthStore = defineStore('auth', () => {
   const authError = ref('')
   const isAuthenticated = computed(() => Boolean(user.value))
   const isAdmin = computed(() => user.value?.role === 'admin')
-  const roleLabel = computed(() => (isAdmin.value ? 'Admin Kelas' : 'Siswa'))
+  const roleLabel = computed(() => (isAdmin.value ? user.value?.jobTitle || 'Admin Kelas' : 'Siswa'))
 
   async function applySession(session) {
     if (!session?.user) {
@@ -21,7 +21,7 @@ export const useAuthStore = defineStore('auth', () => {
     let profile = null
     const { data, error } = await supabase
       .from('profiles')
-      .select('display_name, role, username, attendance_number, must_change_password')
+      .select('display_name, role, job_title, username, attendance_number, must_change_password')
       .eq('id', authUser.id)
       .maybeSingle()
     if (error) console.error('Could not load profile:', error.message)
@@ -41,6 +41,7 @@ export const useAuthStore = defineStore('auth', () => {
       fullName: studentProfile?.full_name || profile?.display_name || authUser.user_metadata?.display_name || authUser.email,
       displayName: studentProfile?.short_name || profile?.display_name || authUser.user_metadata?.display_name || authUser.email,
       role: profile?.role || 'student',
+      jobTitle: profile?.job_title || null,
       mustChangePassword: profile ? profile.must_change_password === true : true
     }
   }

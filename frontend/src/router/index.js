@@ -46,6 +46,7 @@ router.beforeEach((to) => {
   }
   if (auth.isAuthenticated && auth.user?.mustChangePassword && to.name !== 'change-password') return { name: 'change-password' }
   if (to.meta.requiresAdmin && !auth.isAdmin) return { name: 'home' }
+  if (to.name === 'dosman-underground' && !auth.isAdmin) return { name: 'games', query: { dosman: 'unavailable' } }
   return true
 })
 

@@ -43,6 +43,6 @@
 
 @media (min-width: 1024px) {
   :root {
-    --rail-w: 0px;
+    --rail-w: 88px;
   }
 }

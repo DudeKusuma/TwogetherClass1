@@ -9,6 +9,76 @@ const loading = ref(false)
 const error = ref('')
 const result = ref(null)
 const copied = ref(false)
+const students = ref([])
+const studentsLoading = ref(false)
+const studentError = ref('')
+const resettingId = ref('')
+const resetTarget = ref(null)
+const newPassword = ref('')
+const resetError = ref('')
+const resetSuccess = ref(null)
+const resetCopied = ref(false)
+
+async function loadStudents() {
+  if (!supabase) return
+  studentsLoading.value = true
+  studentError.value = ''
+  const { data, error: queryError } = await supabase
+    .from('profiles')
+    .select('id, display_name, username, attendance_number, role')
+    .eq('role', 'student')
+    .order('attendance_number', { ascending: true, nullsFirst: false })
+  studentsLoading.value = false
+  if (queryError) {
+    studentError.value = queryError.message
+    return
+  }
+  students.value = data || []
+}
+
+function openReset(student) {
+  resetTarget.value = student
+  newPassword.value = ''
+  resetError.value = ''
+  resetSuccess.value = null
+  resetCopied.value = false
+}
+
+function closeReset() {
+  resetTarget.value = null
+  resetSuccess.value = null
+  newPassword.value = ''
+  resetError.value = ''
+  resetCopied.value = false
+}
+
+async function resetPassword() {
+  if (!resetTarget.value || resettingId.value) return
+  resetError.value = ''
+  if (newPassword.value.length < 10 || newPassword.value.length > 128) {
+    resetError.value = 'Password harus terdiri dari 10 sampai 128 karakter.'
+    return
+  }
+  const confirmed = window.confirm(`Reset password ${resetTarget.value.username || resetTarget.value.display_name}? Siswa akan diminta mengganti password saat masuk berikutnya.`)
+  if (!confirmed) return
+  resettingId.value = resetTarget.value.id
+  const { data, error: invokeError } = await supabase.functions.invoke('rapid-processor', {
+    body: { profileId: resetTarget.value.id, newPassword: newPassword.value },
+  })
+  resettingId.value = ''
+  if (invokeError || data?.error || data?.success !== true) {
+    resetError.value = data?.error || invokeError?.message || 'Password gagal direset.'
+    return
+  }
+  resetSuccess.value = { username: resetTarget.value.username, password: newPassword.value }
+  newPassword.value = ''
+}
+
+async function copyResetPassword() {
+  if (!resetSuccess.value) return
+  await navigator.clipboard.writeText(`Username: ${resetSuccess.value.username}\nPassword baru: ${resetSuccess.value.password}`)
+  resetCopied.value = true
+}
 
 async function createAccounts() {
   if (loading.value) return
@@ -30,7 +100,10 @@ async function createAccounts() {
     return
   }
   result.value = data
+  await loadStudents()
 }
+
+loadStudents()
 
 function csvEscape(value) {
   return `"${String(value ?? '').replaceAll('"', '""')}"`
@@ -82,6 +155,44 @@ async function copyCredentials() {
       <p v-if="error" class="error-message" role="alert">{{ error }}</p>
     </section>
 
+    <section class="result-card student-accounts">
+      <div class="accounts-heading">
+        <div><h2>Akun siswa</h2><p class="result-note">Password lama tidak dapat ditampilkan. Reset akan mengganti password dan mewajibkan siswa membuat password baru saat login.</p></div>
+        <BaseButton size="sm" variant="secondary" :disabled="studentsLoading" @click="loadStudents">{{ studentsLoading ? 'Memuat…' : 'Muat ulang' }}</BaseButton>
+      </div>
+      <p v-if="studentError" class="error-message" role="alert">{{ studentError }}</p>
+      <p v-else-if="studentsLoading && !students.length" class="result-note">Memuat akun siswa…</p>
+      <p v-else-if="!students.length" class="result-note">Belum ada akun siswa.</p>
+      <div v-else class="table-wrap">
+        <table class="account-table">
+          <thead><tr><th>Absen</th><th>Nama</th><th>Username</th><th>Aksi</th></tr></thead>
+          <tbody><tr v-for="student in students" :key="student.id">
+            <td>{{ student.attendance_number ?? '—' }}</td><td>{{ student.display_name }}</td><td><code>{{ student.username || '—' }}</code></td>
+            <td><BaseButton size="sm" variant="secondary" :disabled="Boolean(resettingId)" @click="openReset(student)"><KeyRound :size="15" /> Reset password</BaseButton></td>
+          </tr></tbody>
+        </table>
+      </div>
+    </section>
+
+    <div v-if="resetTarget" class="reset-overlay" role="presentation" @click.self="closeReset">
+      <section class="reset-dialog" role="dialog" aria-modal="true" aria-labelledby="reset-title">
+        <button class="reset-close" type="button" aria-label="Tutup" @click="closeReset">×</button>
+        <h2 id="reset-title">Reset password siswa</h2>
+        <p class="result-note">{{ resetTarget.display_name }} · <code>{{ resetTarget.username }}</code></p>
+        <template v-if="resetSuccess">
+          <div class="reset-credential"><strong>Password baru</strong><code>{{ resetSuccess.password }}</code><small>Simpan dan berikan kepada siswa secara pribadi. Password ini hanya ditampilkan selama dialog terbuka.</small></div>
+          <div class="credential-actions"><BaseButton size="sm" @click="copyResetPassword"><Copy :size="16" /> {{ resetCopied ? 'Tersalin' : 'Salin kredensial' }}</BaseButton><BaseButton size="sm" variant="secondary" @click="closeReset">Selesai</BaseButton></div>
+        </template>
+        <form v-else @submit.prevent="resetPassword">
+          <label class="reset-label">Password baru<input v-model="newPassword" type="password" autocomplete="new-password" minlength="10" maxlength="128" placeholder="Minimal 10 karakter" required /></label>
+          <p class="reset-hint">Siswa akan diminta mengganti password ini saat login berikutnya.</p>
+          <p v-if="resetError" class="error-message" role="alert">{{ resetError }}</p>
+          <div class="credential-actions"><BaseButton type="submit" :disabled="Boolean(resettingId)"><KeyRound :size="16" /> {{ resettingId ? 'Mereset…' : 'Simpan password baru' }}</BaseButton><BaseButton type="button" variant="secondary" @click="closeReset">Batal</BaseButton></div>
+        </form>
+      </section>
+    </div>
+
+
     <section v-if="result" class="result-card" aria-live="polite">
       <h2>Hasil pembuatan akun</h2>
       <p class="result-note">{{ result.message }}</p>
@@ -131,6 +242,7 @@ h2 { font-size: 16px; font-weight: 800; margin-bottom: 7px; }
 .stats > div { padding: 12px; border-radius: var(--radius-md); background: var(--c-gray); display: flex; flex-direction: column; gap: 3px; }
 .stats strong { font-size: 22px; }.stats span { color: var(--c-text-muted); font-size: 11px; }
 .credential-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: var(--space-3); }
+.accounts-heading { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; margin-bottom:12px; }.accounts-heading h2{margin-bottom:4px}.account-table td:last-child{white-space:normal}.reset-overlay{position:fixed;inset:0;z-index:100;display:grid;place-items:center;padding:20px;background:#17203380}.reset-dialog{position:relative;width:min(100%,460px);padding:22px;border-radius:18px;background:white;box-shadow:var(--shadow-lg)}.reset-close{position:absolute;top:10px;right:12px;border:0;background:transparent;font-size:26px;color:var(--c-text-muted);cursor:pointer}.reset-label{display:grid;gap:7px;margin-top:18px;font-size:13px;font-weight:700}.reset-label input{width:100%;padding:11px 12px;border:1px solid var(--c-border);border-radius:10px;font:inherit}.reset-hint{margin-top:8px;color:var(--c-text-muted);font-size:12px}.reset-credential{display:grid;gap:8px;padding:14px;margin:16px 0;border-radius:12px;background:var(--c-mint)}.reset-credential code{font-size:16px;word-break:break-all}.reset-credential small{color:var(--c-text-muted);line-height:1.45}
 .table-wrap { overflow-x: auto; border: 1px solid var(--c-border); border-radius: var(--radius-md); }
 table { width: 100%; border-collapse: collapse; min-width: 620px; font-size: 12px; text-align: left; }
 th, td { padding: 10px 12px; border-bottom: 1px solid var(--c-border); white-space: nowrap; }
