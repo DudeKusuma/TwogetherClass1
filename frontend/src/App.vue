@@ -1,14 +1,34 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import AppHeader from '@/components/layout/AppHeader.vue'
 import AppFooter from '@/components/layout/AppFooter.vue'
 import CalendarPendingAlert from '@/components/calendar/CalendarPendingAlert.vue'
+import WebsiteGuideModal from '@/components/shared/WebsiteGuideModal.vue'
 import { useAuthStore } from '@/stores/useAuthStore'
 
 const route = useRoute()
 const auth = useAuthStore()
 const showShell = computed(() => auth.isAuthenticated && route.meta.layout !== 'blank' && !route.meta.fullscreen)
+const guideOpen = ref(false)
+const guideKey = (id) => `twogether-guide-seen:${id}`
+
+function openGuide() { guideOpen.value = true }
+function closeGuide() {
+  guideOpen.value = false
+  if (auth.user?.id) {
+    try { localStorage.setItem(guideKey(auth.user.id), '1') } catch { /* Storage may be unavailable in private browsing. */ }
+  }
+}
+
+watch(() => auth.user?.id, (id) => {
+  if (!id) { guideOpen.value = false; return }
+  try { guideOpen.value = localStorage.getItem(guideKey(id)) !== '1' }
+  catch { guideOpen.value = false }
+}, { immediate: true })
+
+onMounted(() => window.addEventListener('twogether:open-guide', openGuide))
+onBeforeUnmount(() => window.removeEventListener('twogether:open-guide', openGuide))
 </script>
 
 <template>
@@ -19,6 +39,7 @@ const showShell = computed(() => auth.isAuthenticated && route.meta.layout !== '
       <RouterView />
     </main>
     <CalendarPendingAlert />
+    <WebsiteGuideModal :open="guideOpen" @close="closeGuide" />
   </div>
   <RouterView v-else />
 </template>

@@ -2,7 +2,7 @@
 import { defineProps, defineEmits } from 'vue'
 import { watch, onBeforeUnmount } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
-import { X, User, Info, ShieldCheck, LogOut, ChevronRight, Wallet, HandCoins, Brush, Images, Award, UserCheck, Gamepad2, ShoppingBag, CalendarDays } from 'lucide-vue-next'
+import { X, User, Info, ShieldCheck, LogOut, ChevronRight, Wallet, HandCoins, Brush, Images, Award, UserCheck, Gamepad2, ShoppingBag, CalendarDays, CircleHelp } from 'lucide-vue-next'
 import BaseButton from '@/components/base/BaseButton.vue'
 import InstallAppCard from '@/components/shared/InstallAppCard.vue'
 import { useAuthStore } from '@/stores/useAuthStore'
@@ -34,6 +34,11 @@ function logout() {
   emit('close')
   auth.logout()
   router.push({ name: 'login' })
+}
+
+function openGuide() {
+  emit('close')
+  window.dispatchEvent(new Event('twogether:open-guide'))
 }
 </script>
 
@@ -72,8 +77,8 @@ function logout() {
           <div class="drawer__section-label">Fitur kelas</div>
           <RouterLink to="/attendance" class="drawer__link" @click="emit('close')"><span class="drawer__link-icon"><UserCheck :size="18" /></span> Presensi <ChevronRight :size="18" class="chev" /></RouterLink>
           <RouterLink to="/" class="drawer__link" @click="emit('close')"><span class="drawer__link-icon"><CalendarDays :size="18" /></span> Highlight Hari Ini <ChevronRight :size="18" class="chev" /></RouterLink>
-          <RouterLink to="/games" class="drawer__link" @click="emit('close')"><span class="drawer__link-icon"><Gamepad2 :size="18" /></span> Games <ChevronRight :size="18" class="chev" /></RouterLink>
-          <RouterLink to="/shop" class="drawer__link" @click="emit('close')"><span class="drawer__link-icon"><ShoppingBag :size="18" /></span> T-Money & Reward Shop <ChevronRight :size="18" class="chev" /></RouterLink>
+          <RouterLink to="/games" class="drawer__link" data-testid="drawer-games-link" @click="emit('close')"><span class="drawer__link-icon"><Gamepad2 :size="18" /></span> Games <ChevronRight :size="18" class="chev" /></RouterLink>
+          <RouterLink to="/shop" class="drawer__link" data-testid="drawer-shop-link" @click="emit('close')"><span class="drawer__link-icon"><ShoppingBag :size="18" /></span> T-Money & Reward Shop <ChevronRight :size="18" class="chev" /></RouterLink>
           <RouterLink to="/cash" class="drawer__link" data-testid="drawer-cash-link" @click="emit('close')">
             <span class="drawer__link-icon drawer__link-icon--mint"><Wallet :size="18" /></span> Uang Kas <ChevronRight :size="18" class="chev" />
           </RouterLink>
@@ -92,6 +97,9 @@ function logout() {
           <RouterLink to="/about" class="drawer__link" data-testid="drawer-about-link" @click="emit('close')">
             <span class="drawer__link-icon drawer__link-icon--mint"><Info :size="18" /></span> Tentang Twogether Class <ChevronRight :size="18" class="chev" />
           </RouterLink>
+          <button type="button" class="drawer__link drawer__guide-link" @click="openGuide">
+            <span class="drawer__link-icon"><CircleHelp :size="18" /></span> Panduan fitur <ChevronRight :size="18" class="chev" />
+          </button>
           <RouterLink
             v-if="auth.isAdmin"
             to="/admin-power"
@@ -245,6 +253,15 @@ function logout() {
   font-weight: 700;
   font-size: 14px;
   transition: background-color 0.18s ease;
+}
+
+.drawer__guide-link {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
 }
 
 .drawer__link:hover {
