@@ -33,6 +33,11 @@ export const useAuthStore = defineStore('auth', () => {
       })
       studentProfile = studentProfileData
     }
+    const { data: cosmetics } = await supabase
+      .from('student_cosmetics')
+      .select('profile_frame')
+      .eq('profile_id', authUser.id)
+      .maybeSingle()
     user.value = {
       id: authUser.id,
       email: authUser.email,
@@ -42,7 +47,8 @@ export const useAuthStore = defineStore('auth', () => {
       displayName: studentProfile?.short_name || profile?.display_name || authUser.user_metadata?.display_name || authUser.email,
       role: profile?.role || 'student',
       jobTitle: profile?.job_title || null,
-      mustChangePassword: profile ? profile.must_change_password === true : true
+      mustChangePassword: profile ? profile.must_change_password === true : true,
+      profileFrame: studentProfile?.profile_frame || cosmetics?.profile_frame || null
     }
   }
 

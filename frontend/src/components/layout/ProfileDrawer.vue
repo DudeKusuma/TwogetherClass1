@@ -6,6 +6,7 @@ import { X, User, Info, ShieldCheck, LogOut, ChevronRight, Wallet, HandCoins, Br
 import BaseButton from '@/components/base/BaseButton.vue'
 import InstallAppCard from '@/components/shared/InstallAppCard.vue'
 import { useAuthStore } from '@/stores/useAuthStore'
+import ProfileAvatarFrame from '@/components/shared/ProfileAvatarFrame.vue'
 
 const props = defineProps({ open: { type: Boolean, default: false } })
 const emit = defineEmits(['close'])
@@ -57,7 +58,7 @@ function openGuide() {
         </div>
 
         <div class="drawer__user">
-          <span class="drawer__avatar">{{ auth.user?.displayName?.charAt(0) }}</span>
+          <ProfileAvatarFrame :frame="auth.user?.profileFrame" size="md" class="drawer__avatar-frame"><span class="drawer__avatar">{{ auth.user?.displayName?.charAt(0) }}</span></ProfileAvatarFrame>
           <div class="drawer__info">
             <h2 class="drawer__name" data-testid="drawer-user-name">{{ auth.user?.displayName }}</h2>
             <span class="chip chip--blue" data-testid="drawer-user-role">{{ auth.roleLabel }}</span>
@@ -194,6 +195,7 @@ function openGuide() {
   font-size: 24px;
   flex-shrink: 0;
 }
+.drawer__avatar-frame .drawer__avatar { width:100%;height:100%; }
 
 .drawer__info {
   display: flex;

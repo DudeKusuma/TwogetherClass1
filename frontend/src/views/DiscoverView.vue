@@ -4,6 +4,7 @@ import { Compass, Search, UsersRound } from 'lucide-vue-next'
 import PagePlaceholder from '@/components/shared/PagePlaceholder.vue'
 import BaseCard from '@/components/base/BaseCard.vue'
 import StudentProfileModal from '@/components/shared/StudentProfileModal.vue'
+import ProfileAvatarFrame from '@/components/shared/ProfileAvatarFrame.vue'
 import { supabase } from '@/lib/supabase'
 
 const students = ref([])
@@ -52,7 +53,7 @@ onMounted(load)
           @click="selectedProfileId = student.profile_id"
         >
           <div class="student-top">
-            <span class="student-avatar">{{ (student.display_name || '?').charAt(0) }}</span>
+            <ProfileAvatarFrame :frame="student.profile_frame" size="discover"><span class="student-avatar">{{ (student.display_name || '?').charAt(0) }}</span></ProfileAvatarFrame>
             <div><h2>{{ student.display_name }}</h2><small>{{ student.role === 'admin' ? `Admin · ${student.job_title || 'Admin Kelas'}` : (student.about_me?.slice(0, 2).join(' · ') || 'Teman XI-B2') }}</small></div>
           </div>
           <div class="hobby-tags"><span v-for="hobby in (student.hobbies || []).slice(0, 8)" :key="hobby">{{ hobby }}</span></div>

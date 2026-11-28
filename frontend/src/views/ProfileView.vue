@@ -5,6 +5,7 @@ import BaseCard from '@/components/base/BaseCard.vue'
 import PagePlaceholder from '@/components/shared/PagePlaceholder.vue'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/useAuthStore'
+import ProfileAvatarFrame from '@/components/shared/ProfileAvatarFrame.vue'
 
 const auth = useAuthStore()
 const loading = ref(true)
@@ -18,6 +19,8 @@ const adminOnly = ref(false)
 const cosmetics = ref({})
 const backgroundOptions = ref([])
 const ownedBackgrounds = ref([])
+const frameOptions = ref([])
+const ownedFrames = ref([])
 const editorOpen = ref(false)
 const customizeOpen = ref(false)
 const customizing = ref(false)
@@ -61,16 +64,20 @@ async function loadProfile() {
   loading.value = true
   error.value = ''
   adminOnly.value = false
-  const [cosmeticResult, walletResult, backgroundsResult, purchasesResult] = await Promise.all([
-    supabase.from('student_cosmetics').select('profile_color,name_color,title_color').eq('profile_id', auth.user.id).maybeSingle(),
+  const [cosmeticResult, walletResult, backgroundsResult, purchasesResult, framesResult] = await Promise.all([
+    supabase.from('student_cosmetics').select('profile_color,name_color,title_color,profile_frame').eq('profile_id', auth.user.id).maybeSingle(),
     supabase.rpc('get_my_t_money'),
     supabase.from('shop_catalog').select('id,name,description,price,preview_color').eq('active', true).eq('category', 'profile_color'),
-    supabase.from('shop_purchases').select('item_id').eq('user_id', auth.user.id)
+    supabase.from('shop_purchases').select('item_id').eq('user_id', auth.user.id),
+    supabase.from('shop_catalog').select('id,name,description,price').eq('active', true).eq('category', 'profile_frame').order('price')
   ])
   cosmetics.value = cosmeticResult.data || {}
+  auth.user.profileFrame = cosmeticResult.data?.profile_frame || null
   tMoney.value = walletResult.error ? null : (walletResult.data?.balance ?? 0)
   backgroundOptions.value = backgroundsResult.data || []
   ownedBackgrounds.value = (purchasesResult.data || []).map(item => item.item_id)
+  frameOptions.value = framesResult.data || []
+  ownedFrames.value = ownedBackgrounds.value.filter(id => id.startsWith('frame-')).map(id => id.slice('frame-'.length))
   const { data, error: requestError } = await supabase.rpc('get_student_profile', {
     target_profile_id: auth.user.id
   })
@@ -163,6 +170,20 @@ async function useDefaultBackground() {
   customizing.value = false
 }
 
+async function equipFrame(frame) {
+  if (customizing.value || cosmetics.value.profile_frame === frame) return
+  if (frame && !ownedFrames.value.includes(frame)) return
+  customizing.value = true
+  error.value = ''
+  const { error: equipError } = await supabase.rpc('equip_profile_frame', { p_frame_id: frame })
+  if (equipError) error.value = 'Border profil belum berhasil dipasang. Pastikan migration border profil sudah dijalankan.'
+  else {
+    cosmetics.value = { ...cosmetics.value, profile_frame: frame }
+    auth.user.profileFrame = frame
+  }
+  customizing.value = false
+}
+
 onMounted(loadProfile)
 </script>
 
@@ -170,7 +191,7 @@ onMounted(loadProfile)
   <PagePlaceholder eyebrow="Profil Saya" title="Profil Saya" :icon="UserRound" tone="lavender" test-id="profile-page">
     <div class="profile-page-content">
       <BaseCard class="profile-identity" data-testid="profile-user-card" :style="cosmetics.profile_color ? { backgroundColor: cosmetics.profile_color } : {}">
-        <span class="profile-avatar">{{ initial }}</span>
+        <ProfileAvatarFrame :frame="cosmetics.profile_frame" size="md"><span class="profile-avatar">{{ initial }}</span></ProfileAvatarFrame>
         <div class="profile-identity__text">
           <h2 data-testid="profile-display-name" :style="cosmetics.name_color ? { color: cosmetics.name_color } : {}">{{ form.short_name || auth.user?.displayName || 'Profil Siswa' }}</h2>
           <p :style="cosmetics.title_color ? { color: cosmetics.title_color } : {}">{{ auth.roleLabel }} · XI-B2 · SMA Negeri 1 Gianyar</p>
@@ -215,7 +236,7 @@ onMounted(loadProfile)
             <BaseCard class="profile-section"><div class="profile-section__heading"><div><span class="section-kicker">MINAT</span><h3><Heart :size="17"/> My Hobbies</h3></div><span class="selection-count">{{ form.hobbies.length }}/8</span></div><p class="section-note">Maksimal 8 pilihan.</p><div class="choice-grid"><button v-for="item in hobbyOptions" :key="item" type="button" :class="{ selected: form.hobbies.includes(item) }" @click="toggleChoice('hobbies', item, 8)">{{ item }}</button></div></BaseCard>
             <BaseCard class="profile-section"><div class="profile-section__heading"><div><span class="section-kicker">TENTANG SAYA</span><h3><Sparkles :size="17"/> About Me</h3></div><span class="selection-count">{{ form.about_me.length }}/6</span></div><p class="section-note">Maksimal 6 pilihan.</p><div class="choice-grid"><button v-for="item in aboutOptions" :key="item" type="button" :class="{ selected: form.about_me.includes(item) }" @click="toggleChoice('about_me', item, 6)">{{ item }}</button></div></BaseCard>
             <BaseCard class="profile-section"><div class="profile-section__heading"><div><span class="section-kicker">DESKRIPSI</span><h3>Deskripsi diri</h3></div><span class="selection-count">{{ form.description.length }}/1000</span></div><textarea v-model="form.description" class="description-input" maxlength="1000" rows="5" placeholder="Tulis deskripsi tentang dirimu..." /></BaseCard>
-            <BaseCard class="profile-section"><div class="profile-section__heading"><div><span class="section-kicker">PRIVASI</span><h3>Pengaturan profil</h3></div><LockKeyhole :size="18"/></div><label class="privacy-toggle"><span><b>Tampilkan NISN ke siswa lain</b><small>NISN hanya terlihat di Discover jika dua izin ini aktif.</small></span><input v-model="form.show_student_number" type="checkbox"/></label><label class="privacy-toggle"><span><b>Izinkan profil tampil di Discover Students</b><small>Informasi profil, deskripsi, dan warna background ditampilkan ke siswa lain. Saldo T-Money juga akan terlihat di profil Discover.</small></span><input v-model="form.discover_opt_in" type="checkbox"/></label></BaseCard>
+            <BaseCard class="profile-section"><div class="profile-section__heading"><div><span class="section-kicker">PRIVASI</span><h3>Pengaturan profil</h3></div><LockKeyhole :size="18"/></div><label class="privacy-toggle"><span><b>Tampilkan NISN ke siswa lain</b><small>NISN hanya terlihat di Discover jika dua izin ini aktif.</small></span><input v-model="form.show_student_number" type="checkbox"/></label><label class="privacy-toggle"><span><b>Izinkan profil tampil di Discover Students</b><small>Informasi profil, deskripsi, warna background, dan border ditampilkan ke siswa lain. Saldo T-Money juga akan terlihat di profil Discover.</small></span><input v-model="form.discover_opt_in" type="checkbox"/></label></BaseCard>
             <p v-if="error" class="profile-message profile-message--error" role="alert">{{ error }}</p>
             <button class="profile-save" type="button" :disabled="saving" @click="saveProfile"><Save :size="17"/> {{ saving ? 'Menyimpan...' : 'Simpan perubahan' }}</button>
           </div>
@@ -223,8 +244,24 @@ onMounted(loadProfile)
       </div>
       <div v-if="customizeOpen" class="profile-modal-backdrop" @click.self="customizeOpen = false">
         <section class="profile-modal customize-modal" role="dialog" aria-modal="true" aria-label="Customize profile">
-          <header class="profile-modal__header"><div><span class="section-kicker">CUSTOMIZE PROFILE</span><h2>Warna background profil</h2></div><button class="modal-close" aria-label="Tutup" @click="customizeOpen = false"><X :size="19"/></button></header>
-          <p class="section-note">Warna yang sudah dibuka muncul di bagian atas. Buka warna baru di Reward Shop.</p>
+          <header class="profile-modal__header"><div><span class="section-kicker">CUSTOMIZE PROFILE</span><h2>Border dan background profil</h2></div><button class="modal-close" aria-label="Tutup" @click="customizeOpen = false"><X :size="19"/></button></header>
+          <h3 class="section-note">Pilih border avatar</h3>
+          <div class="frame-options">
+            <button type="button" class="frame-option" :class="{ selected: !cosmetics.profile_frame }" :disabled="customizing" @click="equipFrame(null)">
+              <ProfileAvatarFrame size="sm"><span class="frame-option__initial">A</span></ProfileAvatarFrame>
+              <span><b>Tanpa border</b><small>{{ !cosmetics.profile_frame ? 'Sedang digunakan' : 'Gunakan tanpa border' }}</small></span>
+              <Check v-if="!cosmetics.profile_frame" :size="17" class="frame-option__check" />
+            </button>
+            <button v-for="frame in frameOptions" :key="frame.id" type="button" class="frame-option" :class="{ selected: cosmetics.profile_frame === frame.id.slice('frame-'.length), locked: !ownedFrames.includes(frame.id.slice('frame-'.length)) }" :disabled="customizing || !ownedFrames.includes(frame.id.slice('frame-'.length))" @click="equipFrame(frame.id.slice('frame-'.length))">
+              <ProfileAvatarFrame :frame="frame.id.slice('frame-'.length)" size="sm"><span class="frame-option__initial">A</span></ProfileAvatarFrame>
+              <span><b>{{ frame.name }}</b><small>{{ !ownedFrames.includes(frame.id.slice('frame-'.length)) ? `Terkunci · beli ${frame.price} T-Money di Shop` : (cosmetics.profile_frame === frame.id.slice('frame-'.length) ? 'Sedang digunakan' : 'Sudah dibeli · gunakan border ini') }}</small></span>
+              <Check v-if="cosmetics.profile_frame === frame.id.slice('frame-'.length)" :size="17" class="frame-option__check" />
+              <LockKeyhole v-else-if="!ownedFrames.includes(frame.id.slice('frame-'.length))" :size="16" class="frame-option__check" />
+            </button>
+            <p v-if="!frameOptions.length" class="section-note">Border profil belum tersedia di Shop.</p>
+          </div>
+          <h3 class="section-note">Warna background profil</h3>
+          <p class="section-note">Border dan warna yang sudah dibeli bisa dipasang di sini. Beli item baru lewat Reward Shop.</p>
           <div class="background-options"><button type="button" class="background-option" :class="{ selected: !cosmetics.profile_color }" :disabled="customizing" @click="useDefaultBackground"><span class="background-swatch background-swatch--default"><Check v-if="!cosmetics.profile_color" :size="18"/></span><span class="background-option__text"><b>Default · Putih</b><small>{{ cosmetics.profile_color ? 'Gunakan background putih' : 'Sedang digunakan' }}</small></span></button><button v-for="item in orderedBackgrounds" :key="item.id" type="button" class="background-option" :class="{ locked: !item.owned, selected: cosmetics.profile_color === item.preview_color }" :disabled="!item.owned || customizing" @click="equipBackground(item)"><span class="background-swatch" :style="{ backgroundColor: item.preview_color }"><LockKeyhole v-if="!item.owned" :size="16"/><Check v-else-if="cosmetics.profile_color === item.preview_color" :size="18"/></span><span class="background-option__text"><b>{{ item.name }}</b><small>{{ item.owned ? (cosmetics.profile_color === item.preview_color ? 'Sedang digunakan' : 'Sudah dibuka · gunakan') : 'Terkunci · buka di Reward Shop' }}</small></span><LockKeyhole v-if="!item.owned" :size="16" class="option-lock"/></button><p v-if="!backgroundOptions.length" class="section-note">Katalog warna belum tersedia. Admin perlu menerapkan migration Reward Shop.</p></div>
           <p v-if="error" class="profile-message profile-message--error" role="alert">{{ error }}</p>
           <RouterLink class="shop-link" to="/shop" @click="customizeOpen = false">Buka Reward Shop</RouterLink>
@@ -274,5 +311,6 @@ onMounted(loadProfile)
 .profile-loading{padding:30px;text-align:center;color:var(--c-text-muted);font-size:12px}
 .profile-summary{gap:16px}.summary-description{display:grid;gap:6px;padding-top:12px;border-top:1px solid var(--c-border);font-size:12px}.summary-description p{white-space:pre-wrap;line-height:1.55;color:var(--c-text-muted)}
 .profile-modal-backdrop{position:fixed;inset:0;z-index:180;display:grid;place-items:center;padding:18px;background:rgba(24,32,48,.5);backdrop-filter:blur(3px)}.profile-modal{width:min(760px,100%);max-height:min(90dvh,900px);overflow:auto;padding:22px;border:1px solid var(--c-border);border-radius:22px;background:var(--c-white);box-shadow:var(--shadow-lg);color:var(--c-text)}.profile-modal__header{position:sticky;top:-22px;z-index:2;display:flex;justify-content:space-between;align-items:center;gap:12px;margin:-22px -22px 17px;padding:18px 22px;background:var(--c-white);border-bottom:1px solid var(--c-border)}.profile-modal__header h2{font-size:18px;font-weight:850;margin-top:4px}.modal-close{width:36px;height:36px;display:grid;place-items:center;border:0;border-radius:50%;background:var(--c-gray);color:var(--c-text)}.profile-modal__body{display:grid;gap:14px}.customize-modal{width:min(520px,100%)}.background-options{display:grid;gap:8px;margin-top:14px}.background-option{width:100%;display:flex;align-items:center;gap:11px;padding:10px;border:1px solid var(--c-border);border-radius:13px;background:var(--c-white);text-align:left;color:var(--c-text)}.background-option.selected{border-color:var(--c-primary);background:var(--c-lavender)}.background-option.locked{opacity:.58;cursor:not-allowed}.background-swatch{width:42px;height:42px;display:grid;place-items:center;flex:none;border-radius:11px;color:#354053}.background-swatch--default{background:#fff;border:1px solid var(--c-border)}.background-option__text{display:grid;gap:4px;flex:1}.background-option__text b{font-size:12px}.background-option__text small{font-size:10px;color:var(--c-text-muted)}.option-lock{color:var(--c-text-muted)}.shop-link{display:block;margin-top:14px;text-align:center;font-size:12px;font-weight:800;color:var(--c-primary)}
+.frame-options{display:grid;gap:8px}.frame-option{width:100%;display:flex;align-items:center;gap:12px;padding:10px;border:1px solid var(--c-border);border-radius:13px;background:var(--c-white);text-align:left;color:var(--c-text)}.frame-option.selected{border-color:var(--c-primary);background:var(--c-lavender)}.frame-option.locked{opacity:.62;cursor:not-allowed}.frame-option>span:nth-child(2){display:grid;gap:4px;flex:1}.frame-option b{font-size:12px}.frame-option small{font-size:10px;color:var(--c-text-muted)}.frame-option__initial{width:100%;height:100%;display:grid;place-items:center;border-radius:50%;background:var(--c-primary);color:white;font-size:16px;font-weight:850}.frame-option__check{color:var(--c-primary)}
 @media(max-width:520px){.readonly-grid,.profile-fields{grid-template-columns:1fr}.field-full{grid-column:auto}.profile-identity{flex-wrap:wrap}.profile-wallet{width:100%}}
 </style>

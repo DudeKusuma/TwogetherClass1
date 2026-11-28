@@ -6,6 +6,7 @@ import logo from '@/assets/icons/logo XI B2.jpeg'
 import SearchBar from '@/components/shared/SearchBar.vue'
 import NotificationPanel from '@/components/announcements/NotificationPanel.vue'
 import ProfileDrawer from './ProfileDrawer.vue'
+import ProfileAvatarFrame from '@/components/shared/ProfileAvatarFrame.vue'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { useAnnouncementStore } from '@/stores/useAnnouncementStore'
 
@@ -59,7 +60,7 @@ onBeforeUnmount(() => {
           <span v-if="activeCount" class="badge" data-testid="notification-badge">{{ activeCount > 9 ? '9+' : activeCount }}</span>
         </button>
         <button type="button" class="avatar" aria-label="Buka profil" data-testid="profile-avatar-button" @click="drawerOpen = true">
-          {{ initial }}
+          <ProfileAvatarFrame :frame="auth.user?.profileFrame" size="sm" class="avatar__frame">{{ initial }}</ProfileAvatarFrame>
         </button>
       </div>
 
@@ -190,6 +191,15 @@ onBeforeUnmount(() => {
   font-size: 16px;
   box-shadow: 0 4px 12px rgba(23, 105, 245, 0.25);
   transition: transform 0.18s var(--ease);
+}
+
+/* The header button is compact, so keep its frame inside the button bounds. */
+.avatar :deep(.avatar__frame) {
+  width: 30px;
+}
+
+.avatar :deep(.avatar__frame .profile-frame__art) {
+  transform: scale(1.05);
 }
 
 .avatar:hover {

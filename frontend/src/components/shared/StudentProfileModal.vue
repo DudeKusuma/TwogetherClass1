@@ -3,6 +3,7 @@ import { computed, ref, watch, onBeforeUnmount } from 'vue'
 import { X, IdCard, Heart, Sparkles, FileText, Coins } from 'lucide-vue-next'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/useAuthStore'
+import ProfileAvatarFrame from '@/components/shared/ProfileAvatarFrame.vue'
 
 const props = defineProps({
   profileId: { type: String, default: '' },
@@ -103,7 +104,7 @@ onBeforeUnmount(() => {
           <div v-else-if="error" class="student-profile-state student-profile-error">{{ error }}</div>
           <template v-else-if="profile">
             <div class="student-profile-hero">
-              <div class="student-profile-avatar" :style="profile.profile_color ? { backgroundColor: profile.profile_color } : {}">{{ (profile.short_name || profile.full_name || '?').charAt(0).toUpperCase() }}</div>
+              <ProfileAvatarFrame :frame="profile.profile_frame" size="lg"><div class="student-profile-avatar" :style="profile.profile_color ? { backgroundColor: profile.profile_color } : {}">{{ (profile.short_name || profile.full_name || '?').charAt(0).toUpperCase() }}</div></ProfileAvatarFrame>
               <h3>{{ profile.short_name || profile.full_name }}</h3>
               <p>XI-B2 · {{ profile.role === 'admin' ? `Admin · ${profile.job_title || 'Admin Kelas'}` : 'Siswa' }}</p>
             </div>
