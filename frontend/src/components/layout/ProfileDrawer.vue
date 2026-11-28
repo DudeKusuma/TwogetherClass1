@@ -58,7 +58,7 @@ function openGuide() {
         </div>
 
         <div class="drawer__user">
-          <ProfileAvatarFrame :frame="auth.user?.profileFrame" size="md" class="drawer__avatar-frame"><span class="drawer__avatar">{{ auth.user?.displayName?.charAt(0) }}</span></ProfileAvatarFrame>
+          <ProfileAvatarFrame :frame="auth.user?.profileFrame" :photo="auth.user?.profilePhotoUrl" size="md" class="drawer__avatar-frame"><span class="drawer__avatar">{{ auth.user?.displayName?.charAt(0) }}</span></ProfileAvatarFrame>
           <div class="drawer__info">
             <h2 class="drawer__name" data-testid="drawer-user-name">{{ auth.user?.displayName }}</h2>
             <span class="chip chip--blue" data-testid="drawer-user-role">{{ auth.roleLabel }}</span>

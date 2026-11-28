@@ -109,7 +109,7 @@ See `UPDATE_20261114_COMMUNITY_GAMES_REWARDS.md` for the detailed feature list a
 
 ## Animated profile borders
 
-The profile customization dialog includes three animated frame styles sold in Reward Shop for 8 T-Money each. To save and show each student's purchase and equipped frame, run `supabase/migrations/20261128_animated_profile_frames.sql` and then `supabase/migrations/20261128_profile_frame_shop.sql` after the earlier profile and community migrations. The frame shop migration adds catalog items and checks ownership before equipping; the animated SVG is served from `frontend/public/assets/profile-frames/`.
+The profile customization dialog includes three animated frame styles sold in Reward Shop for 8 T-Money each. To save and show each student's purchase and equipped frame, run `supabase/migrations/20261128_animated_profile_frames.sql` and then `supabase/migrations/20261128_profile_frame_shop.sql` after the earlier profile and community migrations. The frame shop migration adds catalog items and checks ownership before equipping; the animated SVG is served from `frontend/public/assets/profile-frames/`. Run `supabase/migrations/20261128_profile_photo_upload.sql` to enable private profile photo uploads (JPG, PNG, WebP, up to 5 MB).
 
 
 The ZIP includes `frontend/.env.example` as a safe template containing placeholders only. Copy it to `frontend/.env.local` and replace the values with your project's Supabase URL and publishable key. Never add a service-role key.

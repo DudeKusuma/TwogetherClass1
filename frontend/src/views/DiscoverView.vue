@@ -5,6 +5,7 @@ import PagePlaceholder from '@/components/shared/PagePlaceholder.vue'
 import BaseCard from '@/components/base/BaseCard.vue'
 import StudentProfileModal from '@/components/shared/StudentProfileModal.vue'
 import ProfileAvatarFrame from '@/components/shared/ProfileAvatarFrame.vue'
+import { getProfilePhotoUrl } from '@/lib/profilePhotos'
 import { supabase } from '@/lib/supabase'
 
 const students = ref([])
@@ -23,7 +24,10 @@ async function load() {
   loading.value = true
   const { data, error: requestError } = await supabase.rpc('get_discover_students')
   if (requestError) error.value = 'Discover Students belum siap. Admin perlu menjalankan migration fitur komunitas.'
-  else students.value = data || []
+  else students.value = await Promise.all((data || []).map(async student => ({
+    ...student,
+    photoUrl: await getProfilePhotoUrl(student.photo_path)
+  })))
   loading.value = false
 }
 
@@ -53,7 +57,7 @@ onMounted(load)
           @click="selectedProfileId = student.profile_id"
         >
           <div class="student-top">
-            <ProfileAvatarFrame :frame="student.profile_frame" size="discover"><span class="student-avatar">{{ (student.display_name || '?').charAt(0) }}</span></ProfileAvatarFrame>
+            <ProfileAvatarFrame :frame="student.profile_frame" :photo="student.photoUrl" size="discover"><span class="student-avatar">{{ (student.display_name || '?').charAt(0) }}</span></ProfileAvatarFrame>
             <div><h2>{{ student.display_name }}</h2><small>{{ student.role === 'admin' ? `Admin · ${student.job_title || 'Admin Kelas'}` : (student.about_me?.slice(0, 2).join(' · ') || 'Teman XI-B2') }}</small></div>
           </div>
           <div class="hobby-tags"><span v-for="hobby in (student.hobbies || []).slice(0, 8)" :key="hobby">{{ hobby }}</span></div>

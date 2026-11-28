@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import { supabase, isSupabaseConfigured } from '@/lib/supabase'
 import { useAnnouncementStore } from './useAnnouncementStore'
 import { useSubjectStore } from './useSubjectStore'
+import { getProfilePhotoUrl } from '@/lib/profilePhotos'
 
 export const useAuthStore = defineStore('auth', () => {
   const user = ref(null)
@@ -38,6 +39,7 @@ export const useAuthStore = defineStore('auth', () => {
       .select('profile_frame')
       .eq('profile_id', authUser.id)
       .maybeSingle()
+    const profilePhotoUrl = await getProfilePhotoUrl(studentProfile?.photo_path)
     user.value = {
       id: authUser.id,
       email: authUser.email,
@@ -48,7 +50,9 @@ export const useAuthStore = defineStore('auth', () => {
       role: profile?.role || 'student',
       jobTitle: profile?.job_title || null,
       mustChangePassword: profile ? profile.must_change_password === true : true,
-      profileFrame: studentProfile?.profile_frame || cosmetics?.profile_frame || null
+      profileFrame: studentProfile?.profile_frame || cosmetics?.profile_frame || null,
+      profilePhotoPath: studentProfile?.photo_path || null,
+      profilePhotoUrl
     }
   }
 

@@ -4,6 +4,7 @@ import { X, IdCard, Heart, Sparkles, FileText, Coins } from 'lucide-vue-next'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/useAuthStore'
 import ProfileAvatarFrame from '@/components/shared/ProfileAvatarFrame.vue'
+import { getProfilePhotoUrl } from '@/lib/profilePhotos'
 
 const props = defineProps({
   profileId: { type: String, default: '' },
@@ -57,7 +58,7 @@ async function loadProfile(id) {
   } else if (!data) {
     error.value = 'Profil siswa belum tersedia atau akun belum terhubung ke roster.'
   } else {
-    profile.value = data
+    profile.value = { ...data, photo_url: await getProfilePhotoUrl(data.photo_path) }
     // The balance is included by the profile RPC only for the owner/admin or
     // for profiles that opted in to Discover.
     tMoney.value = data.t_money == null ? null : Number(data.t_money)
@@ -104,7 +105,7 @@ onBeforeUnmount(() => {
           <div v-else-if="error" class="student-profile-state student-profile-error">{{ error }}</div>
           <template v-else-if="profile">
             <div class="student-profile-hero">
-              <ProfileAvatarFrame :frame="profile.profile_frame" size="lg"><div class="student-profile-avatar" :style="profile.profile_color ? { backgroundColor: profile.profile_color } : {}">{{ (profile.short_name || profile.full_name || '?').charAt(0).toUpperCase() }}</div></ProfileAvatarFrame>
+              <ProfileAvatarFrame :frame="profile.profile_frame" :photo="profile.photo_url" size="lg"><div class="student-profile-avatar" :style="profile.profile_color ? { backgroundColor: profile.profile_color } : {}">{{ (profile.short_name || profile.full_name || '?').charAt(0).toUpperCase() }}</div></ProfileAvatarFrame>
               <h3>{{ profile.short_name || profile.full_name }}</h3>
               <p>XI-B2 · {{ profile.role === 'admin' ? `Admin · ${profile.job_title || 'Admin Kelas'}` : 'Siswa' }}</p>
             </div>

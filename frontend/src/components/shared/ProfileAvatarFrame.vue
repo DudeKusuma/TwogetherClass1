@@ -4,6 +4,7 @@ import { computed } from 'vue'
 const props = defineProps({
   frame: { type: String, default: '' },
   size: { type: String, default: 'md' },
+  photo: { type: String, default: '' },
   label: { type: String, default: '' }
 })
 
@@ -17,7 +18,7 @@ const frameLabel = computed(() => ({
 
 <template>
   <span class="profile-frame" :class="[`profile-frame--${size}`, frameClass]" :aria-label="label || (frameLabel ? `${frameLabel} profile border` : undefined)">
-    <span class="profile-frame__content"><slot /></span>
+    <span class="profile-frame__content"><img v-if="photo" class="profile-frame__photo" :src="photo" alt="" /><slot v-else /></span>
     <img v-if="frame" class="profile-frame__art" src="/assets/profile-frames/blueberry-jam.svg?v=2" alt="" aria-hidden="true" />
   </span>
 </template>
@@ -26,6 +27,7 @@ const frameLabel = computed(() => ({
 .profile-frame{position:relative;isolation:isolate;display:inline-grid;place-items:center;flex:none;aspect-ratio:1;overflow:visible}
 .profile-frame--sm{width:42px}.profile-frame--md{width:62px}.profile-frame--lg{width:72px}.profile-frame--discover{width:43px}
 .profile-frame__content{position:relative;z-index:0;width:100%;height:100%;display:grid;place-items:center;border-radius:50%;overflow:hidden}
+.profile-frame__photo{width:100%;height:100%;object-fit:cover;border-radius:50%}
 .profile-frame__art{position:absolute;z-index:1;inset:0;width:100%;height:100%;object-fit:contain;transform:scale(1.5);transform-origin:center;pointer-events:none;user-select:none;animation:frame-in 240ms ease-out both}
 .profile-frame--sm .profile-frame__art{transform:scale(1.05)}
 .profile-frame--strawberry-swirl .profile-frame__art{filter:hue-rotate(82deg) saturate(1.15)}

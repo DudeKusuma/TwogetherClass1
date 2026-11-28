@@ -60,7 +60,7 @@ onBeforeUnmount(() => {
           <span v-if="activeCount" class="badge" data-testid="notification-badge">{{ activeCount > 9 ? '9+' : activeCount }}</span>
         </button>
         <button type="button" class="avatar" aria-label="Buka profil" data-testid="profile-avatar-button" @click="drawerOpen = true">
-          <ProfileAvatarFrame :frame="auth.user?.profileFrame" size="sm" class="avatar__frame">{{ initial }}</ProfileAvatarFrame>
+          <ProfileAvatarFrame :frame="auth.user?.profileFrame" :photo="auth.user?.profilePhotoUrl" size="sm" class="avatar__frame">{{ initial }}</ProfileAvatarFrame>
         </button>
       </div>
 

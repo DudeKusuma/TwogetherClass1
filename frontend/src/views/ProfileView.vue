@@ -1,11 +1,12 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
-import { UserRound, Save, Heart, Sparkles, LockKeyhole, CheckCircle2, Coins, Pencil, Palette, X, Check } from 'lucide-vue-next'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { UserRound, Save, Heart, Sparkles, LockKeyhole, CheckCircle2, Coins, Pencil, Palette, X, Check, Camera } from 'lucide-vue-next'
 import BaseCard from '@/components/base/BaseCard.vue'
 import PagePlaceholder from '@/components/shared/PagePlaceholder.vue'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/useAuthStore'
 import ProfileAvatarFrame from '@/components/shared/ProfileAvatarFrame.vue'
+import { getProfilePhotoUrl } from '@/lib/profilePhotos'
 
 const auth = useAuthStore()
 const loading = ref(true)
@@ -25,6 +26,18 @@ const editorOpen = ref(false)
 const customizeOpen = ref(false)
 const customizing = ref(false)
 const tMoney = ref(null)
+const avatarPhotoPath = ref('')
+const avatarPhotoUrl = ref('')
+const avatarPreview = ref('')
+const avatarSourceUrl = ref('')
+const avatarCropImage = ref(null)
+const avatarCropOpen = ref(false)
+const avatarCropZoom = ref(1)
+const avatarCropOffset = ref({ x: 0, y: 0 })
+const avatarCropDrag = ref(null)
+const avatarFile = ref(null)
+const avatarFileInput = ref(null)
+const avatarUploading = ref(false)
 const form = ref({
   short_name: '',
   birth_place: '',
@@ -92,6 +105,10 @@ async function loadProfile() {
     studentNumber.value = data.student_number || ''
     attendanceNumber.value = data.attendance_number ?? null
     if (data.short_name) auth.user.displayName = data.short_name
+    avatarPhotoPath.value = data.photo_path || ''
+    avatarPhotoUrl.value = await getProfilePhotoUrl(data.photo_path)
+    auth.user.profilePhotoPath = avatarPhotoPath.value || null
+    auth.user.profilePhotoUrl = avatarPhotoUrl.value
     form.value = {
       short_name: data.short_name === data.full_name ? '' : (data.short_name || ''),
       birth_place: data.birth_place || '',
@@ -107,6 +124,164 @@ async function loadProfile() {
   }
   loading.value = false
 }
+
+function selectAvatarFile(event) {
+  error.value = ''
+  success.value = ''
+  const file = event.target.files?.[0]
+  if (!file) return
+  const allowedTypes = ['image/jpeg', 'image/png', 'image/webp']
+  if (!allowedTypes.includes(file.type)) {
+    error.value = 'Pilih foto JPG, PNG, atau WebP.'
+    event.target.value = ''
+    return
+  }
+  if (file.size > 5 * 1024 * 1024) {
+    error.value = 'Ukuran foto maksimal 5 MB.'
+    event.target.value = ''
+    return
+  }
+  if (avatarPreview.value) URL.revokeObjectURL(avatarPreview.value)
+  if (avatarSourceUrl.value) URL.revokeObjectURL(avatarSourceUrl.value)
+  avatarFile.value = file
+  avatarPreview.value = ''
+  avatarSourceUrl.value = URL.createObjectURL(file)
+  avatarCropImage.value = new Image()
+  avatarCropImage.value.onload = () => {
+    avatarCropZoom.value = 1
+    avatarCropOffset.value = { x: 0, y: 0 }
+    avatarCropOpen.value = true
+  }
+  avatarCropImage.value.onerror = () => { error.value = 'Foto tidak dapat dibuka. Coba pilih file lain.' }
+  avatarCropImage.value.src = avatarSourceUrl.value
+}
+
+const cropImageStyle = computed(() => {
+  const image = avatarCropImage.value
+  if (!image?.naturalWidth || !image?.naturalHeight) return {}
+  const scale = Math.max(240 / image.naturalWidth, 240 / image.naturalHeight) * avatarCropZoom.value
+  return {
+    width: `${image.naturalWidth * scale}px`,
+    height: `${image.naturalHeight * scale}px`,
+    left: `calc(50% + ${avatarCropOffset.value.x}px)`,
+    top: `calc(50% + ${avatarCropOffset.value.y}px)`
+  }
+})
+
+function startCropDrag(event) {
+  if (event.button !== undefined && event.button !== 0) return
+  avatarCropDrag.value = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, offset: { ...avatarCropOffset.value } }
+  event.currentTarget.setPointerCapture?.(event.pointerId)
+}
+
+function moveCropDrag(event) {
+  if (!avatarCropDrag.value) return
+  const next = {
+    x: avatarCropDrag.value.offset.x + event.clientX - avatarCropDrag.value.x,
+    y: avatarCropDrag.value.offset.y + event.clientY - avatarCropDrag.value.y
+  }
+  avatarCropOffset.value = clampCropOffset(next)
+}
+
+function stopCropDrag() { avatarCropDrag.value = null }
+
+function clampCropOffset(offset) {
+  const image = avatarCropImage.value
+  if (!image?.naturalWidth || !image?.naturalHeight) return offset
+  const scale = Math.max(240 / image.naturalWidth, 240 / image.naturalHeight) * avatarCropZoom.value
+  const maxX = Math.max(0, (image.naturalWidth * scale - 240) / 2)
+  const maxY = Math.max(0, (image.naturalHeight * scale - 240) / 2)
+  return { x: Math.min(maxX, Math.max(-maxX, offset.x)), y: Math.min(maxY, Math.max(-maxY, offset.y)) }
+}
+
+function updateCropZoom(event) {
+  avatarCropZoom.value = Number(event.target.value)
+  avatarCropOffset.value = clampCropOffset(avatarCropOffset.value)
+}
+
+function applyAvatarCrop() {
+  const image = avatarCropImage.value
+  if (!image?.naturalWidth || !image?.naturalHeight) return
+  const stageSize = 240
+  const scale = Math.max(stageSize / image.naturalWidth, stageSize / image.naturalHeight) * avatarCropZoom.value
+  const renderedWidth = image.naturalWidth * scale
+  const renderedHeight = image.naturalHeight * scale
+  const left = (stageSize - renderedWidth) / 2 + avatarCropOffset.value.x
+  const top = (stageSize - renderedHeight) / 2 + avatarCropOffset.value.y
+  const sourceX = Math.max(0, -left / scale)
+  const sourceY = Math.max(0, -top / scale)
+  const sourceSize = Math.min(stageSize / scale, image.naturalWidth - sourceX, image.naturalHeight - sourceY)
+  const canvas = document.createElement('canvas')
+  canvas.width = 512
+  canvas.height = 512
+  const context = canvas.getContext('2d')
+  if (!context || sourceSize <= 0) return
+  context.drawImage(image, sourceX, sourceY, sourceSize, sourceSize, 0, 0, 512, 512)
+  canvas.toBlob(blob => {
+    if (!blob) {
+      error.value = 'Foto belum dapat diproses. Coba pilih foto lain.'
+      return
+    }
+    if (avatarPreview.value) URL.revokeObjectURL(avatarPreview.value)
+    avatarFile.value = new File([blob], 'avatar.jpg', { type: 'image/jpeg' })
+    avatarPreview.value = URL.createObjectURL(blob)
+    avatarCropOpen.value = false
+  }, 'image/jpeg', 0.92)
+}
+
+function cancelAvatarCrop() {
+  avatarCropOpen.value = false
+  avatarFile.value = null
+  if (avatarSourceUrl.value) URL.revokeObjectURL(avatarSourceUrl.value)
+  avatarSourceUrl.value = ''
+  avatarCropImage.value = null
+  if (avatarFileInput.value) avatarFileInput.value.value = ''
+}
+
+async function uploadAvatar() {
+  const file = avatarFile.value
+  if (!file || avatarUploading.value) return
+  error.value = ''
+  success.value = ''
+  avatarUploading.value = true
+  const photoPath = `${auth.user.id}/avatar`
+  const { error: uploadError } = await supabase.storage
+    .from('profile-avatars')
+    .upload(photoPath, file, { upsert: true, contentType: file.type, cacheControl: '0' })
+  if (uploadError) {
+    error.value = 'Foto belum berhasil diunggah. Coba lagi.'
+    avatarUploading.value = false
+    return
+  }
+  const { error: saveError } = await supabase.from('student_profile_details').upsert({
+    profile_id: auth.user.id,
+    photo_path: photoPath,
+    updated_at: new Date().toISOString()
+  }, { onConflict: 'profile_id' })
+  if (saveError) {
+    error.value = 'Foto sudah diunggah, tetapi profil belum berhasil diperbarui.'
+    avatarUploading.value = false
+    return
+  }
+  avatarPhotoPath.value = photoPath
+  avatarPhotoUrl.value = await getProfilePhotoUrl(photoPath)
+  auth.user.profilePhotoPath = photoPath
+  auth.user.profilePhotoUrl = avatarPhotoUrl.value
+  if (avatarPreview.value) URL.revokeObjectURL(avatarPreview.value)
+  if (avatarSourceUrl.value) URL.revokeObjectURL(avatarSourceUrl.value)
+  avatarSourceUrl.value = ''
+  avatarCropImage.value = null
+  avatarPreview.value = ''
+  avatarFile.value = null
+  if (avatarFileInput.value) avatarFileInput.value.value = ''
+  success.value = 'Foto profil berhasil diperbarui.'
+  avatarUploading.value = false
+}
+
+onBeforeUnmount(() => {
+  if (avatarPreview.value) URL.revokeObjectURL(avatarPreview.value)
+  if (avatarSourceUrl.value) URL.revokeObjectURL(avatarSourceUrl.value)
+})
 
 async function saveProfile() {
   error.value = ''
@@ -191,7 +366,7 @@ onMounted(loadProfile)
   <PagePlaceholder eyebrow="Profil Saya" title="Profil Saya" :icon="UserRound" tone="lavender" test-id="profile-page">
     <div class="profile-page-content">
       <BaseCard class="profile-identity" data-testid="profile-user-card" :style="cosmetics.profile_color ? { backgroundColor: cosmetics.profile_color } : {}">
-        <ProfileAvatarFrame :frame="cosmetics.profile_frame" size="md"><span class="profile-avatar">{{ initial }}</span></ProfileAvatarFrame>
+        <ProfileAvatarFrame :frame="cosmetics.profile_frame" :photo="avatarPhotoUrl" size="md"><span class="profile-avatar">{{ initial }}</span></ProfileAvatarFrame>
         <div class="profile-identity__text">
           <h2 data-testid="profile-display-name" :style="cosmetics.name_color ? { color: cosmetics.name_color } : {}">{{ form.short_name || auth.user?.displayName || 'Profil Siswa' }}</h2>
           <p :style="cosmetics.title_color ? { color: cosmetics.title_color } : {}">{{ auth.roleLabel }} · XI-B2 · SMA Negeri 1 Gianyar</p>
@@ -245,6 +420,10 @@ onMounted(loadProfile)
       <div v-if="customizeOpen" class="profile-modal-backdrop" @click.self="customizeOpen = false">
         <section class="profile-modal customize-modal" role="dialog" aria-modal="true" aria-label="Customize profile">
           <header class="profile-modal__header"><div><span class="section-kicker">CUSTOMIZE PROFILE</span><h2>Border dan background profil</h2></div><button class="modal-close" aria-label="Tutup" @click="customizeOpen = false"><X :size="19"/></button></header>
+          <section class="avatar-upload">
+            <ProfileAvatarFrame :frame="cosmetics.profile_frame" :photo="avatarPreview || avatarPhotoUrl" size="md"><span class="profile-avatar">{{ initial }}</span></ProfileAvatarFrame>
+            <div class="avatar-upload__info"><b>Foto profil</b><small>JPG, PNG, atau WebP · maksimal 5 MB. Foto terlihat oleh anggota kelas yang bisa melihat profilmu.</small><div class="avatar-upload__actions"><button type="button" @click="avatarFileInput?.click()"><Camera :size="15"/> {{ avatarFile ? 'Ganti pilihan' : 'Pilih foto' }}</button><button type="button" :disabled="!avatarFile || avatarUploading" @click="uploadAvatar">{{ avatarUploading ? 'Mengunggah…' : 'Simpan foto' }}</button></div><input ref="avatarFileInput" class="avatar-file-input" type="file" accept="image/jpeg,image/png,image/webp" @change="selectAvatarFile" /></div>
+          </section>
           <h3 class="section-note">Pilih border avatar</h3>
           <div class="frame-options">
             <button type="button" class="frame-option" :class="{ selected: !cosmetics.profile_frame }" :disabled="customizing" @click="equipFrame(null)">
@@ -265,6 +444,18 @@ onMounted(loadProfile)
           <div class="background-options"><button type="button" class="background-option" :class="{ selected: !cosmetics.profile_color }" :disabled="customizing" @click="useDefaultBackground"><span class="background-swatch background-swatch--default"><Check v-if="!cosmetics.profile_color" :size="18"/></span><span class="background-option__text"><b>Default · Putih</b><small>{{ cosmetics.profile_color ? 'Gunakan background putih' : 'Sedang digunakan' }}</small></span></button><button v-for="item in orderedBackgrounds" :key="item.id" type="button" class="background-option" :class="{ locked: !item.owned, selected: cosmetics.profile_color === item.preview_color }" :disabled="!item.owned || customizing" @click="equipBackground(item)"><span class="background-swatch" :style="{ backgroundColor: item.preview_color }"><LockKeyhole v-if="!item.owned" :size="16"/><Check v-else-if="cosmetics.profile_color === item.preview_color" :size="18"/></span><span class="background-option__text"><b>{{ item.name }}</b><small>{{ item.owned ? (cosmetics.profile_color === item.preview_color ? 'Sedang digunakan' : 'Sudah dibuka · gunakan') : 'Terkunci · buka di Reward Shop' }}</small></span><LockKeyhole v-if="!item.owned" :size="16" class="option-lock"/></button><p v-if="!backgroundOptions.length" class="section-note">Katalog warna belum tersedia. Admin perlu menerapkan migration Reward Shop.</p></div>
           <p v-if="error" class="profile-message profile-message--error" role="alert">{{ error }}</p>
           <RouterLink class="shop-link" to="/shop" @click="customizeOpen = false">Buka Reward Shop</RouterLink>
+        </section>
+      </div>
+      <div v-if="avatarCropOpen" class="profile-modal-backdrop avatar-crop-backdrop" @click.self="cancelAvatarCrop">
+        <section class="profile-modal avatar-crop-modal" role="dialog" aria-modal="true" aria-label="Potong foto profil">
+          <header class="profile-modal__header"><div><span class="section-kicker">FOTO PROFIL</span><h2>Atur potongan foto</h2></div><button class="modal-close" aria-label="Batal crop" @click="cancelAvatarCrop"><X :size="19"/></button></header>
+          <p class="section-note">Geser foto agar posisinya pas di dalam lingkaran.</p>
+          <div class="avatar-crop-stage" @pointerdown="startCropDrag" @pointermove="moveCropDrag" @pointerup="stopCropDrag" @pointercancel="stopCropDrag" @lostpointercapture="stopCropDrag">
+            <img :src="avatarSourceUrl" :style="cropImageStyle" alt="Pratinjau potongan foto" draggable="false" />
+            <span class="avatar-crop-mask" aria-hidden="true"></span>
+          </div>
+          <label class="avatar-crop-zoom">Zoom <input type="range" min="1" max="3" step="0.01" :value="avatarCropZoom" @input="updateCropZoom" /></label>
+          <div class="avatar-crop-actions"><button type="button" @click="cancelAvatarCrop">Batal</button><button type="button" @click="applyAvatarCrop"><Check :size="16"/> Gunakan foto</button></div>
         </section>
       </div>
     </Teleport>
@@ -312,5 +503,7 @@ onMounted(loadProfile)
 .profile-summary{gap:16px}.summary-description{display:grid;gap:6px;padding-top:12px;border-top:1px solid var(--c-border);font-size:12px}.summary-description p{white-space:pre-wrap;line-height:1.55;color:var(--c-text-muted)}
 .profile-modal-backdrop{position:fixed;inset:0;z-index:180;display:grid;place-items:center;padding:18px;background:rgba(24,32,48,.5);backdrop-filter:blur(3px)}.profile-modal{width:min(760px,100%);max-height:min(90dvh,900px);overflow:auto;padding:22px;border:1px solid var(--c-border);border-radius:22px;background:var(--c-white);box-shadow:var(--shadow-lg);color:var(--c-text)}.profile-modal__header{position:sticky;top:-22px;z-index:2;display:flex;justify-content:space-between;align-items:center;gap:12px;margin:-22px -22px 17px;padding:18px 22px;background:var(--c-white);border-bottom:1px solid var(--c-border)}.profile-modal__header h2{font-size:18px;font-weight:850;margin-top:4px}.modal-close{width:36px;height:36px;display:grid;place-items:center;border:0;border-radius:50%;background:var(--c-gray);color:var(--c-text)}.profile-modal__body{display:grid;gap:14px}.customize-modal{width:min(520px,100%)}.background-options{display:grid;gap:8px;margin-top:14px}.background-option{width:100%;display:flex;align-items:center;gap:11px;padding:10px;border:1px solid var(--c-border);border-radius:13px;background:var(--c-white);text-align:left;color:var(--c-text)}.background-option.selected{border-color:var(--c-primary);background:var(--c-lavender)}.background-option.locked{opacity:.58;cursor:not-allowed}.background-swatch{width:42px;height:42px;display:grid;place-items:center;flex:none;border-radius:11px;color:#354053}.background-swatch--default{background:#fff;border:1px solid var(--c-border)}.background-option__text{display:grid;gap:4px;flex:1}.background-option__text b{font-size:12px}.background-option__text small{font-size:10px;color:var(--c-text-muted)}.option-lock{color:var(--c-text-muted)}.shop-link{display:block;margin-top:14px;text-align:center;font-size:12px;font-weight:800;color:var(--c-primary)}
 .frame-options{display:grid;gap:8px}.frame-option{width:100%;display:flex;align-items:center;gap:12px;padding:10px;border:1px solid var(--c-border);border-radius:13px;background:var(--c-white);text-align:left;color:var(--c-text)}.frame-option.selected{border-color:var(--c-primary);background:var(--c-lavender)}.frame-option.locked{opacity:.62;cursor:not-allowed}.frame-option>span:nth-child(2){display:grid;gap:4px;flex:1}.frame-option b{font-size:12px}.frame-option small{font-size:10px;color:var(--c-text-muted)}.frame-option__initial{width:100%;height:100%;display:grid;place-items:center;border-radius:50%;background:var(--c-primary);color:white;font-size:16px;font-weight:850}.frame-option__check{color:var(--c-primary)}
+.avatar-upload{display:flex;align-items:center;gap:12px;padding:12px;border:1px solid var(--c-border);border-radius:14px;background:var(--c-gray)}.avatar-upload__info{display:grid;gap:6px;min-width:0}.avatar-upload__info>b{font-size:13px}.avatar-upload__info>small{font-size:10px;line-height:1.4;color:var(--c-text-muted)}.avatar-upload__actions{display:flex;gap:7px;flex-wrap:wrap}.avatar-upload__actions button{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:7px 10px;border:0;border-radius:9px;background:var(--c-white);color:var(--c-primary);font-size:11px;font-weight:800}.avatar-upload__actions button:last-child{background:var(--c-primary);color:white}.avatar-upload__actions button:disabled{opacity:.5;cursor:not-allowed}.avatar-file-input{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.avatar-crop-backdrop{z-index:190}.avatar-crop-modal{width:min(380px,100%);display:grid;gap:14px}.avatar-crop-stage{position:relative;width:240px;height:240px;max-width:100%;margin:0 auto;overflow:hidden;border-radius:16px;background:#141824;touch-action:none;cursor:grab;user-select:none}.avatar-crop-stage:active{cursor:grabbing}.avatar-crop-stage img{position:absolute;max-width:none;transform:translate(-50%,-50%);pointer-events:none}.avatar-crop-mask{position:absolute;inset:0;border-radius:50%;box-shadow:0 0 0 999px #1119;pointer-events:none;border:2px solid #fff;box-sizing:border-box}.avatar-crop-zoom{display:flex;align-items:center;gap:12px;font-size:12px;font-weight:800}.avatar-crop-zoom input{flex:1;accent-color:var(--c-primary)}.avatar-crop-actions{display:flex;justify-content:flex-end;gap:8px}.avatar-crop-actions button{display:inline-flex;align-items:center;gap:6px;border:0;border-radius:10px;padding:10px 13px;background:var(--c-gray);color:var(--c-text);font-size:12px;font-weight:800}.avatar-crop-actions button:last-child{background:var(--c-primary);color:white}
 @media(max-width:520px){.readonly-grid,.profile-fields{grid-template-columns:1fr}.field-full{grid-column:auto}.profile-identity{flex-wrap:wrap}.profile-wallet{width:100%}}
 </style>
